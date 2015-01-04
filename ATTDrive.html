@@ -1,0 +1,220 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1, maximum-scale=1, target-densityDpi=120" />
+    <title>My Best Friend</title>
+    <link rel="stylesheet" href="att-sdk/styles/att-sdk.css">
+    <link rel="stylesheet" href="att-sdk/styles/font-asesome.css">
+    <link rel="stylesheet" href="styles/main.css" />
+
+    <!-- Google API-->
+    <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?sensor=false"></script>
+
+    <!-- DEC API -->
+    <script type="text/javascript" src="dec-sdk\scripts\data-event-sdk.json"></script>
+    <script type="text/javascript" src="dec-sdk\scripts\data-event-sdk.js"></script>
+
+    <style type="text/css">
+        body {
+            background-image: url("rod5.jpg");
+            background-repeat: no-repeat;
+            background-position: 50px 30px
+        }
+
+        #myconsole {
+            position: fixed;  
+            bottom: 0px;
+            font-size:x-small;
+        }
+
+    </style>
+
+</head>
+
+<body ng-app="app">
+    <h3>My Best Friend</h3>
+
+    <div id="dogaddress">
+    </div>
+
+    <!-- My Stuff -->
+    <div id="myconsole">
+    </div>
+
+    <script type="text/javascript" language="javascript">
+    var Console = {};
+
+    Console.log = (function (message) {
+        var console = document.getElementById('myconsole');
+
+        var p = document.createElement('p');
+        p.style.wordWrap = 'break-word';
+        p.innerHTML = message;
+        console.appendChild(p);
+        while (console.childNodes.length > 25) {
+            console.removeChild(console.firstChild);
+        }
+        console.scrollTop = console.scrollHeight;
+    });
+
+    //Console.log("Test Debug");
+    //displayAddress("36.17295", "-115.145576");
+
+    var Chat = {};
+
+    Chat.socket = null;
+
+    Chat.connect = (function (host) {
+        if ('WebSocket' in window) {
+            Chat.socket = new WebSocket(host);
+        } else if ('MozWebSocket' in window) {
+            Chat.socket = new MozWebSocket(host);
+        } else {
+            Console.log('Error: WebSocket is not supported by this browser.');
+            return;
+        }
+
+        Chat.socket.onopen = function () {
+            Console.log('Connection opened.');
+
+            // Send the Register Command to the server to register the userid to this socket connection
+            var registerXML = "<sc op='R'><phone>ATTDriveTablet</phone></sc>"
+            Chat.socket.send(registerXML);
+
+            // Register interest in socket open/close for each phone number
+            //registerInterestInSocketOpenClose()
+
+            // Register interest in text message confirmations from phones
+            //registerInterestInMessageConfirmation();
+
+            registerInterestInDogLocation();
+
+            // If there was a pre-exiating tracking session then stop tracking
+            // If the page refreshes and there is tracking then stop tracking
+            //if (typeof (sessionStorage.trackPhoneNumber) != "undefined")
+            //    ButtonStopTrackPhone_onclick();
+
+        };
+
+        Chat.socket.onclose = function () {
+            //document.getElementById('chat').onkeydown = null;
+            Console.log('Connection closed.');
+        };
+
+        Chat.socket.onerror = function (event) {
+            Console.log('Connection Error. ' + event.data);
+        };
+
+
+        /*
+        * OnMessage
+        * A mesage has been sent through the socket to the browser.
+        */
+        Chat.socket.onmessage = function (message) {
+            //Console.log("onMessage " + message.data);
+            //Console.log("DogLoc index=" + message.data.indexOf("dogloc"));
+            //if (message.data.indexOf("dogloc") != -1) {
+            //    Console.log("found");
+            //} else {
+            //    Console.log("not found");
+            //}
+            // Check for an Unregister
+            if (message.data.indexOf("dogloc") != -1) {
+
+                // Dog has been found. Display the address
+                var startLatElement = message.data.indexOf("<lat>");
+                var endLatElement = message.data.indexOf("</lat>");
+                var lat = message.data.substring(startLatElement + 5, endLatElement);
+
+                var startLonElement = message.data.indexOf("<lon>");
+                var endLonElement = message.data.indexOf("</lon>");
+                var lon = message.data.substring(startLonElement + 5, endLonElement);
+
+                // Display the Address
+                displayAddress(lat, lon);
+            }
+        };
+    });
+
+    /*
+    * initialize
+    * Set the socket server URL
+    */
+    Chat.initialize = function () {
+        if (window.location.protocol == 'http:') {
+            //Chat.connect('ws://' + window.location.host + '/spsedictation/safecomm');
+            //Chat.connect('ws://64.16.214.62:8080/spsedictation/safecomm');      // Test socket server
+            //Chat.connect('ws://localhost:8080/spsedictation/safecomm');    // development socket server on Glassfish
+            //Chat.connect('ws://localhost:8443/spsedictation/safecomm');    // development socket server on Tomcat
+            //Chat.connect('ws://localhost:8888/spsedictation/safecomm');    // development socket server on Tomcat 8
+            Chat.connect('wss://barnyard.mobileassociate.com/spsedictation/safecomm');    // production socket server
+        } else {
+            //Chat.connect('wss://' + window.location.host + '/spsedictation/safecomm');
+            Chat.connect('wss://barnyard.mobileassociate.com/spsedictation/safecomm');    // production socket server
+        }
+    };
+
+    Chat.initialize();
+
+    </script>
+
+    <script type="text/javascript">
+        function registerInterestInDogLocation() {
+            Chat.socket.send("<sc op='IC'><opcode>dogloc</opcode></sc>");
+        }
+
+        function displayAddress(lat, lon) {
+            //Console.log("display address lat=" + lat + " lon=" + lon);
+            var latlng = new google.maps.LatLng(lat, lon);
+            var geocoder = new google.maps.Geocoder();
+            geocoder.geocode({ 'latLng': latlng }, function (results, status) {
+                if (status == google.maps.GeocoderStatus.OK) {
+                    if (results[1]) {
+                        var address = results[0].formatted_address;
+                        //Console.log("Address: " + address);
+                        var myaddresss = document.getElementById('dogaddress');
+
+                        myaddresss.innerHTML = "<br>" + "<h3>Your Dog is at Address:</h3><br><h2>" + address + "</h2>";
+
+                        //aMarker.set("location_type", results[0].geometry.location_type);
+                        //var street = results[0].types["street_address"];
+                        //var pcode = results[0].types["postal_code"];
+                    }
+                }
+            });
+        }
+
+        function displayPOIS() {
+            try {
+                Console.log("Plot Point");
+                drive = new Drive();
+                //drive.init("Set POI",null,new String() {"navigation"});
+
+                pois = new Pois();
+
+                pois.setId("YYZ");
+                pois.setLatitude(36.17295);
+                pois.setLongitude(-115.145576);
+                pois.setSymbol("POI");
+                pois.setType("Dog");
+                pois.setVisible(true);
+                pois.setSelected(false);
+
+                poisList = new DecList();
+                poisList.add(pois);
+                drive.navigation.pois.set(poisList).then(new Resolve(), new Reject());
+
+                map = new Map();
+                map.setZoomToPoiId("YYZ");
+                drive.navigation.map.set(map);
+                Console.log("After Plot Point");
+            } catch (error) {
+                Console.log("Error: " + error.message);
+            }
+        }
+    </script>
+
+</body>
+
+</html>
